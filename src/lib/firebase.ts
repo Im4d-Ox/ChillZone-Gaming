@@ -11,9 +11,20 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Only initialize Firebase if credentials are available
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+
+if (firebaseConfig.apiKey && firebaseConfig.projectId) {
+  try {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+  }
+}
 
 // Admin email - you can change this to your admin email
 const ADMIN_EMAIL = "ctnimad@gmail.com";
@@ -25,6 +36,8 @@ export async function isAdminUser(user: any): Promise<boolean> {
   if (user.email === ADMIN_EMAIL) return true;
   
   // Alternatively, check Firestore for admin role
+  if (!db) return false;
+  
   try {
     const adminDoc = await getDoc(doc(db, "admins", user.uid));
     return adminDoc.exists();
