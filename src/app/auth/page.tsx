@@ -6,6 +6,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navbar } from "@/components/ui/Navbar";
 import { Footer } from "@/components/sections/Footer";
 
+export const dynamic = 'force-dynamic';
+
 export default function AuthPage() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [isForgotPassword, setIsForgotPassword] = useState(false);

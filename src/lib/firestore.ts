@@ -13,6 +13,8 @@ import {
 import { db, isFirebaseInitialized } from "./firebase";
 import { Game } from "./games";
 
+export const dynamic = 'force-dynamic';
+
 const GAMES_COLLECTION = "games";
 
 export async function getGamesFromFirestore(): Promise<Game[]> {

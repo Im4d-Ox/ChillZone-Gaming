@@ -13,27 +13,25 @@ const firebaseConfig = {
   measurementId: "G-5W46WNGERV"
 };
 
-// Initialize Firebase
+// Firebase instances
 let app: any = null;
 let auth: any = null;
 let db: any = null;
 let analytics: any = null;
 let isFirebaseInitialized = false;
 
-try {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-  auth = getAuth(app);
-  db = getFirestore(app);
-  
-  // Initialize analytics only in browser
-  if (typeof window !== 'undefined') {
+// Initialize Firebase only on client side
+if (typeof window !== 'undefined') {
+  try {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
     analytics = getAnalytics(app);
+    isFirebaseInitialized = true;
+    console.log("Firebase initialized successfully");
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
   }
-  
-  isFirebaseInitialized = true;
-  console.log("Firebase initialized successfully");
-} catch (error) {
-  console.error("Firebase initialization error:", error);
 }
 
 // Admin email - you can change this to your admin email

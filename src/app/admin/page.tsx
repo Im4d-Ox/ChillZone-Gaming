@@ -14,6 +14,8 @@ import {
   deleteGameFromFirestore
 } from "@/lib/firestore";
 
+export const dynamic = 'force-dynamic';
+
 export default function AdminDashboard() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();

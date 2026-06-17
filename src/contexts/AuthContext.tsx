@@ -13,6 +13,8 @@ import {
 } from "firebase/auth";
 import { auth, isFirebaseInitialized } from "@/lib/firebase";
 
+export const dynamic = 'force-dynamic';
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
