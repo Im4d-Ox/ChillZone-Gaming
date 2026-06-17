@@ -1,8 +1,3 @@
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import { getAnalytics } from "firebase/analytics";
-
 const firebaseConfig = {
   apiKey: "AIzaSyA76BF-YNt7iaguJEK4ZYtB4tspE7Q9OjU",
   authDomain: "chillzone-gaming.firebaseapp.com",
@@ -20,9 +15,14 @@ let db: any = null;
 let analytics: any = null;
 let isFirebaseInitialized = false;
 
-// Initialize Firebase only on client side
+// Initialize Firebase only on client side with dynamic imports
 if (typeof window !== 'undefined') {
   try {
+    const { initializeApp, getApps, getApp } = require("firebase/app");
+    const { getAuth } = require("firebase/auth");
+    const { getFirestore } = require("firebase/firestore");
+    const { getAnalytics } = require("firebase/analytics");
+    
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
@@ -47,6 +47,7 @@ export async function isAdminUser(user: any): Promise<boolean> {
   if (!db) return false;
   
   try {
+    const { doc, getDoc } = require("firebase/firestore");
     const adminDoc = await getDoc(doc(db, "admins", user.uid));
     return adminDoc.exists();
   } catch (error) {
