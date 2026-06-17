@@ -11,7 +11,7 @@ import {
   verifyPasswordResetCode,
   confirmPasswordReset
 } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, isFirebaseInitialized } from "@/lib/firebase";
 
 interface AuthContextType {
   user: User | null;
@@ -29,6 +29,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!isFirebaseInitialized) {
+      console.warn("Firebase not initialized. Auth features will be disabled.");
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -38,18 +44,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string) => {
+    if (!isFirebaseInitialized) {
+      throw new Error("Firebase is not initialized. Please check your environment variables.");
+    }
     await signInWithEmailAndPassword(auth, email, password);
   };
 
   const signUp = async (email: string, password: string) => {
+    if (!isFirebaseInitialized) {
+      throw new Error("Firebase is not initialized. Please check your environment variables.");
+    }
     await createUserWithEmailAndPassword(auth, email, password);
   };
 
   const signOut = async () => {
+    if (!isFirebaseInitialized) {
+      return;
+    }
     await firebaseSignOut(auth);
   };
 
   const resetPassword = async (email: string) => {
+    if (!isFirebaseInitialized) {
+      throw new Error("Firebase is not initialized. Please check your environment variables.");
+    }
     await sendPasswordResetEmail(auth, email, {
       url: `${window.location.origin}/reset-password`,
     });

@@ -15,15 +15,20 @@ const firebaseConfig = {
 let app: any = null;
 let auth: any = null;
 let db: any = null;
+let isFirebaseInitialized = false;
 
 if (firebaseConfig.apiKey && firebaseConfig.projectId) {
   try {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
+    isFirebaseInitialized = true;
+    console.log("Firebase initialized successfully");
   } catch (error) {
     console.error("Firebase initialization error:", error);
   }
+} else {
+  console.warn("Firebase credentials not found. Firebase features will be disabled.");
 }
 
 // Admin email - you can change this to your admin email
@@ -47,4 +52,4 @@ export async function isAdminUser(user: any): Promise<boolean> {
   }
 }
 
-export { app, auth, db, ADMIN_EMAIL };
+export { app, auth, db, ADMIN_EMAIL, isFirebaseInitialized };

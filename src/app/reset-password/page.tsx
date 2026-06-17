@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { verifyPasswordResetCode, confirmPasswordReset } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { auth, isFirebaseInitialized } from "@/lib/firebase";
 import { Navbar } from "@/components/ui/Navbar";
 import { Footer } from "@/components/sections/Footer";
 
@@ -19,6 +19,12 @@ export default function ResetPasswordPage() {
   const oobCode = searchParams.get("oobCode");
 
   useEffect(() => {
+    if (!isFirebaseInitialized) {
+      setError("Firebase is not initialized. Please check your environment variables.");
+      setLoading(false);
+      return;
+    }
+
     if (!oobCode) {
       setError("Invalid password reset link. Please request a new one.");
       setLoading(false);
@@ -40,6 +46,11 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!isFirebaseInitialized) {
+      setError("Firebase is not initialized. Please check your environment variables.");
+      return;
+    }
 
     if (password.length < 6) {
       setError("Password must be at least 6 characters long.");
