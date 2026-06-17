@@ -1,34 +1,39 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyA76BF-YNt7iaguJEK4ZYtB4tspE7Q9OjU",
+  authDomain: "chillzone-gaming.firebaseapp.com",
+  projectId: "chillzone-gaming",
+  storageBucket: "chillzone-gaming.firebasestorage.app",
+  messagingSenderId: "897378506689",
+  appId: "1:897378506689:web:ff4e51e046cb379ac68140",
+  measurementId: "G-5W46WNGERV"
 };
 
-// Only initialize Firebase if credentials are available
+// Initialize Firebase
 let app: any = null;
 let auth: any = null;
 let db: any = null;
+let analytics: any = null;
 let isFirebaseInitialized = false;
 
-if (firebaseConfig.apiKey && firebaseConfig.projectId) {
-  try {
-    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-    auth = getAuth(app);
-    db = getFirestore(app);
-    isFirebaseInitialized = true;
-    console.log("Firebase initialized successfully");
-  } catch (error) {
-    console.error("Firebase initialization error:", error);
+try {
+  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+  auth = getAuth(app);
+  db = getFirestore(app);
+  
+  // Initialize analytics only in browser
+  if (typeof window !== 'undefined') {
+    analytics = getAnalytics(app);
   }
-} else {
-  console.warn("Firebase credentials not found. Firebase features will be disabled.");
+  
+  isFirebaseInitialized = true;
+  console.log("Firebase initialized successfully");
+} catch (error) {
+  console.error("Firebase initialization error:", error);
 }
 
 // Admin email - you can change this to your admin email
@@ -52,4 +57,4 @@ export async function isAdminUser(user: any): Promise<boolean> {
   }
 }
 
-export { app, auth, db, ADMIN_EMAIL, isFirebaseInitialized };
+export { app, auth, db, analytics, ADMIN_EMAIL, isFirebaseInitialized };
