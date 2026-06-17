@@ -1,27 +1,14 @@
 "use client";
 
 import { Game } from "@/lib/games";
-import { ShoppingCart, Star } from "@phosphor-icons/react";
-import { useState } from "react";
-import { EyebrowBadge } from "@/components/ui/EyebrowBadge";
+import { Star } from "@phosphor-icons/react";
 import { HudFrame } from "@/components/ui/HudFrame";
 
 interface GameCardProps {
   game: Game;
-  onAddToCart?: (game: Game) => void;
 }
 
-export function GameCard({ game, onAddToCart }: GameCardProps) {
-  const [isAdded, setIsAdded] = useState(false);
-
-  const handleAddToCart = () => {
-    if (onAddToCart && !isAdded) {
-      onAddToCart(game);
-      setIsAdded(true);
-      setTimeout(() => setIsAdded(false), 2000);
-    }
-  };
-
+export function GameCard({ game }: GameCardProps) {
   return (
     <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] transition-all duration-300 hover:border-accent/50 hover:bg-white/[0.04] hover:shadow-[0_0_30px_rgba(212,162,47,0.15)]">
       <div className="relative aspect-[4/3] overflow-hidden">
@@ -81,18 +68,6 @@ export function GameCard({ game, onAddToCart }: GameCardProps) {
               </span>
             )}
           </div>
-
-          <button
-            onClick={handleAddToCart}
-            disabled={isAdded}
-            className={`rounded-full p-2 transition-all duration-200 ${
-              isAdded
-                ? "bg-accent text-black shadow-[0_0_12px_rgba(212,162,47,0.6)]"
-                : "bg-white/10 text-white hover:bg-accent hover:text-black"
-            }`}
-          >
-            <ShoppingCart size={18} weight={isAdded ? "fill" : "regular"} />
-          </button>
         </div>
       </div>
     </div>

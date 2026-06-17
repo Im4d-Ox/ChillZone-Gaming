@@ -6,7 +6,9 @@ import {
   deleteDoc, 
   doc, 
   query, 
-  orderBy 
+  orderBy,
+  onSnapshot,
+  Unsubscribe
 } from "firebase/firestore";
 import { db } from "./firebase";
 import { Game } from "./games";
@@ -39,15 +41,25 @@ export async function deleteGameFromFirestore(id: string): Promise<void> {
   await deleteDoc(gameRef);
 }
 
-export async function initializeDefaultGames(): Promise<void> {
-  const existingGames = await getGamesFromFirestore();
+export function subscribeToGames(
+  onUpdate: (games: Game[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const gamesRef = collection(db, GAMES_COLLECTION);
+  const q = query(gamesRef, orderBy("title"));
   
-  if (existingGames.length === 0) {
-    const { defaultGames } = await import("./games");
-    
-    for (const game of defaultGames) {
-      const { id, ...gameData } = game;
-      await addDoc(collection(db, GAMES_COLLECTION), gameData);
+  return onSnapshot(
+    q,
+    (snapshot) => {
+      const games = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      } as Game));
+      onUpdate(games);
+    },
+    (error) => {
+      console.error("Error listening to games:", error);
+      if (onError) onError(error);
     }
-  }
+  );
 }

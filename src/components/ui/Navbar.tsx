@@ -2,19 +2,28 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowUpRight, ShoppingCart, User, SignOut } from "@phosphor-icons/react";
+import { ArrowUpRight, User, SignOut } from "@phosphor-icons/react";
 import { useAuth } from "@/contexts/AuthContext";
-import { AuthModal } from "@/components/auth/AuthModal";
+import { isAdminUser } from "@/lib/firebase";
 
-interface NavbarProps {
-  cartCount?: number;
-  onCartClick?: () => void;
-}
+interface NavbarProps {}
 
-export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
+export function Navbar({}: NavbarProps) {
   const [scrolled, setScrolled] = useState(false);
-  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const { user, signOut } = useAuth();
+
+  useEffect(() => {
+    const checkAdmin = async () => {
+      if (user) {
+        const adminStatus = await isAdminUser(user);
+        setIsAdmin(adminStatus);
+      } else {
+        setIsAdmin(false);
+      }
+    };
+    checkAdmin();
+  }, [user]);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
@@ -44,6 +53,12 @@ export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="font-mono text-[11px] uppercase tracking-[0.24em] text-zinc-400 transition-colors hover:text-foreground"
+          >
+            Home
+          </button>
           <a
             href="#systems"
             className="font-mono text-[11px] uppercase tracking-[0.24em] text-zinc-400 transition-colors hover:text-foreground"
@@ -56,12 +71,14 @@ export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
           >
             Games
           </Link>
-          <Link
-            href="/admin"
-            className="font-mono text-[11px] uppercase tracking-[0.24em] text-zinc-400 transition-colors hover:text-foreground"
-          >
-            Admin
-          </Link>
+          {isAdmin && (
+            <Link
+              href="/admin"
+              className="font-mono text-[11px] uppercase tracking-[0.24em] text-zinc-400 transition-colors hover:text-foreground"
+            >
+              Admin
+            </Link>
+          )}
           <a
             href="#footer"
             className="font-mono text-[11px] uppercase tracking-[0.24em] text-zinc-400 transition-colors hover:text-foreground"
@@ -71,21 +88,6 @@ export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
         </nav>
 
         <div className="flex items-center gap-4">
-          {onCartClick && (
-            <button
-              onClick={onCartClick}
-              className="group relative inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-foreground backdrop-blur-md transition-all duration-200 hover:bg-white/[0.1] hover:border-accent/30 active:translate-y-[1px]"
-            >
-              <ShoppingCart size={14} weight="regular" />
-              Cart
-              {cartCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-accent font-mono text-[9px] font-bold text-black shadow-[0_0_12px_rgba(212,162,47,0.6)]">
-                  {cartCount}
-                </span>
-              )}
-            </button>
-          )}
-          
           {user ? (
             <button
               onClick={() => signOut()}
@@ -95,13 +97,13 @@ export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
               Sign Out
             </button>
           ) : (
-            <button
-              onClick={() => setAuthModalOpen(true)}
+            <Link
+              href="/auth"
               className="group inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.05] px-4 py-2 font-mono text-[11px] font-medium uppercase tracking-[0.22em] text-foreground backdrop-blur-md transition-all duration-200 hover:bg-white/[0.1] active:translate-y-[1px]"
             >
               <User size={14} weight="regular" />
               Sign In
-            </button>
+            </Link>
           )}
           
           <Link
@@ -117,8 +119,6 @@ export function Navbar({ cartCount = 0, onCartClick }: NavbarProps) {
           </Link>
         </div>
       </div>
-      
-      <AuthModal isOpen={authModalOpen} onClose={() => setAuthModalOpen(false)} />
     </header>
   );
 }

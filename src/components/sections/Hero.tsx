@@ -28,29 +28,45 @@ export function Hero() {
     let loadedCount = 0;
     const imgs: HTMLImageElement[] = [];
 
-    for (let i = 1; i <= FRAME_COUNT; i++) {
-      const img = new Image();
-      img.src = framePath(i);
-      img.onload = () => {
-        if (cancelled) return;
-        loadedCount++;
-        setLoadProgress(loadedCount / FRAME_COUNT);
-        if (loadedCount === FRAME_COUNT) {
-          loadedRef.current = true;
-          setLoaded(true);
-        }
-      };
-      img.onerror = () => {
-        if (cancelled) return;
-        loadedCount++;
-        setLoadProgress(loadedCount / FRAME_COUNT);
-        if (loadedCount === FRAME_COUNT) {
-          loadedRef.current = true;
-          setLoaded(true);
-        }
-      };
-      imgs.push(img);
-    }
+    // Load frames in parallel for faster loading
+    const loadFrame = (i: number) => {
+      return new Promise<void>((resolve) => {
+        const img = new Image();
+        img.src = framePath(i);
+        img.onload = () => {
+          if (cancelled) return;
+          loadedCount++;
+          setLoadProgress(loadedCount / FRAME_COUNT);
+          if (loadedCount === FRAME_COUNT) {
+            loadedRef.current = true;
+            setLoaded(true);
+          }
+          resolve();
+        };
+        img.onerror = () => {
+          if (cancelled) return;
+          loadedCount++;
+          setLoadProgress(loadedCount / FRAME_COUNT);
+          if (loadedCount === FRAME_COUNT) {
+            loadedRef.current = true;
+            setLoaded(true);
+          }
+          resolve();
+        };
+        imgs[i - 1] = img;
+      });
+    };
+
+    // Load all frames in parallel
+    const loadAllFrames = async () => {
+      const promises = [];
+      for (let i = 1; i <= FRAME_COUNT; i++) {
+        promises.push(loadFrame(i));
+      }
+      await Promise.all(promises);
+    };
+
+    loadAllFrames();
     framesRef.current = imgs;
 
     return () => {

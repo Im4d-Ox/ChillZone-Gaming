@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { EyebrowBadge } from "@/components/ui/EyebrowBadge";
 import { HudFrame } from "@/components/ui/HudFrame";
-import { BEATS, CINE_FRAME_COUNT, cineFramePath } from "@/lib/cinematic";
+import { BEATS, getCineFrameCount, getCineFramePath } from "@/lib/cinematic";
 
 export function CinematicReveal() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -23,41 +23,86 @@ export function CinematicReveal() {
   const [loadProgress, setLoadProgress] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [visibleBeats, setVisibleBeats] = useState<Set<string>>(new Set());
+  const [selectedFolder, setSelectedFolder] = useState<string>("frames2");
+
+  useEffect(() => {
+    // Load frames configuration from localStorage
+    const savedFolders = localStorage.getItem("framesFoldersOrder");
+    if (savedFolders) {
+      try {
+        const parsed = JSON.parse(savedFolders) as Array<{ name: string; position: "none" | "first" | "second" }>;
+        // Find folder with "first" position, fallback to "second", then default to "frames2"
+        const firstFolder = parsed.find(f => f.position === "first");
+        const secondFolder = parsed.find(f => f.position === "second");
+        setSelectedFolder(firstFolder?.name || secondFolder?.name || "frames2");
+      } catch (error) {
+        console.error("Error loading frames configuration:", error);
+        // Fallback to old system
+        const savedFolder = localStorage.getItem("selectedFramesFolder");
+        if (savedFolder) {
+          setSelectedFolder(savedFolder);
+        }
+      }
+    } else {
+      // Fallback to old system
+      const savedFolder = localStorage.getItem("selectedFramesFolder");
+      if (savedFolder) {
+        setSelectedFolder(savedFolder);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
     let loadedCount = 0;
     const imgs: HTMLImageElement[] = [];
+    const frameCount = getCineFrameCount(selectedFolder);
 
-    for (let i = 1; i <= CINE_FRAME_COUNT; i++) {
-      const img = new Image();
-      img.src = cineFramePath(i);
-      img.onload = () => {
-        if (cancelled) return;
-        loadedCount++;
-        setLoadProgress(loadedCount / CINE_FRAME_COUNT);
-        if (loadedCount === CINE_FRAME_COUNT) {
-          loadedRef.current = true;
-          setLoaded(true);
-        }
-      };
-      img.onerror = () => {
-        if (cancelled) return;
-        loadedCount++;
-        setLoadProgress(loadedCount / CINE_FRAME_COUNT);
-        if (loadedCount === CINE_FRAME_COUNT) {
-          loadedRef.current = true;
-          setLoaded(true);
-        }
-      };
-      imgs.push(img);
-    }
+    // Load frames in parallel for faster loading
+    const loadFrame = (i: number) => {
+      return new Promise<void>((resolve) => {
+        const img = new Image();
+        img.src = getCineFramePath(i, selectedFolder);
+        img.onload = () => {
+          if (cancelled) return;
+          loadedCount++;
+          setLoadProgress(loadedCount / frameCount);
+          if (loadedCount === frameCount) {
+            loadedRef.current = true;
+            setLoaded(true);
+          }
+          resolve();
+        };
+        img.onerror = () => {
+          if (cancelled) return;
+          loadedCount++;
+          setLoadProgress(loadedCount / frameCount);
+          if (loadedCount === frameCount) {
+            loadedRef.current = true;
+            setLoaded(true);
+          }
+          resolve();
+        };
+        imgs[i] = img;
+      });
+    };
+
+    // Load all frames in parallel
+    const loadAllFrames = async () => {
+      const promises = [];
+      for (let i = 0; i < frameCount; i++) {
+        promises.push(loadFrame(i));
+      }
+      await Promise.all(promises);
+    };
+
+    loadAllFrames();
     framesRef.current = imgs;
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [selectedFolder]);
 
   const drawFrame = useCallback((index: number) => {
     const canvas = canvasRef.current;
@@ -134,8 +179,8 @@ export function CinematicReveal() {
             : Math.min(1, Math.max(0, -rect.top / scrollable));
 
         const frameIndex = Math.min(
-          CINE_FRAME_COUNT - 1,
-          Math.floor(progress * CINE_FRAME_COUNT),
+          getCineFrameCount(selectedFolder) - 1,
+          Math.floor(progress * getCineFrameCount(selectedFolder)),
         );
         if (frameIndex !== lastFrameRef.current) {
           lastFrameRef.current = frameIndex;
@@ -163,9 +208,10 @@ export function CinematicReveal() {
         }
 
         if (seqReadoutRef.current) {
-          const n = Math.min(CINE_FRAME_COUNT, frameIndex + 1);
+          const frameCount = getCineFrameCount(selectedFolder);
+          const n = Math.min(frameCount, frameIndex + 1);
           seqReadoutRef.current.textContent =
-            `SEQ ${String(n).padStart(3, "0")} / ${CINE_FRAME_COUNT}`;
+            `SEQ ${String(n).padStart(3, "0")} / ${frameCount}`;
         }
 
         const newVisible = new Set<string>();
@@ -261,7 +307,7 @@ export function CinematicReveal() {
             ref={seqReadoutRef}
             className="font-mono text-[10px] uppercase tracking-[0.28em] text-accent"
           >
-            SEQ 001 / {CINE_FRAME_COUNT}
+            SEQ 001 / {getCineFrameCount(selectedFolder)}
           </span>
           <span
             aria-hidden

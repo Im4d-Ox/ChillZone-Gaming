@@ -1,41 +1,38 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Game, defaultGames, categories } from "@/lib/games";
+import { Game, categories } from "@/lib/games";
 import { CategoryFilter } from "./CategoryFilter";
 import { GameGrid } from "./GameGrid";
 import { EyebrowBadge } from "@/components/ui/EyebrowBadge";
 import { AnimatedSection, AnimatedItem } from "@/components/ui/AnimatedSection";
-import { getGamesFromFirestore, initializeDefaultGames } from "@/lib/firestore";
+import { getGamesFromFirestore, subscribeToGames } from "@/lib/firestore";
 
-interface GameStoreSectionProps {
-  onAddToCart?: (game: Game) => void;
-}
+interface GameStoreSectionProps {}
 
-export function GameStoreSection({ onAddToCart }: GameStoreSectionProps) {
+export function GameStoreSection({}: GameStoreSectionProps) {
   const [selectedCategory, setSelectedCategory] = useState("All Games");
-  const [games, setGames] = useState<Game[]>(defaultGames);
+  const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadGames();
+    const unsubscribe = subscribeToGames(
+      (gamesData) => {
+        setGames(gamesData);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error loading games:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
   }, []);
 
-  const loadGames = async () => {
-    try {
-      await initializeDefaultGames();
-      const gamesData = await getGamesFromFirestore();
-      setGames(gamesData);
-    } catch (error) {
-      console.error("Error loading games:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const filteredGames = selectedCategory === "All Games" 
-    ? games 
-    : games.filter((game) => game.category === selectedCategory);
+    ? games.filter((game) => game.status === "live")
+    : games.filter((game) => game.category === selectedCategory && game.status === "live");
 
   return (
     <section
@@ -73,7 +70,7 @@ export function GameStoreSection({ onAddToCart }: GameStoreSectionProps) {
           </AnimatedItem>
 
           <AnimatedItem>
-            <GameGrid games={filteredGames} onAddToCart={onAddToCart} />
+            <GameGrid games={filteredGames} />
           </AnimatedItem>
         </AnimatedSection>
       </div>
