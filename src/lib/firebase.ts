@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getAnalytics } from "firebase/analytics";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA76BF-YNt7iaguJEK4ZYtB4tspE7Q9OjU",
@@ -9,39 +10,49 @@ const firebaseConfig = {
   storageBucket: "chillzone-gaming.firebasestorage.app",
   messagingSenderId: "897378506689",
   appId: "1:897378506689:web:ff4e51e046cb379ac68140",
-  measurementId: "G-5W46WNGERV",
+  measurementId: "G-5W46WNGERV"
 };
 
-// Initialize Firebase (SSR-safe singleton)
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+// Firebase instances
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let analytics: any = null;
+let isFirebaseInitialized = false;
 
-// Only create services AFTER app exists
-const auth = getAuth(app);
-const db = getFirestore(app);
+// Initialize Firebase only on client side
+if (typeof window !== 'undefined') {
+  try {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    db = getFirestore(app);
+    analytics = getAnalytics(app);
+    isFirebaseInitialized = true;
+    console.log("Firebase initialized successfully");
+  } catch (error) {
+    console.error("Firebase initialization error:", error);
+  }
+}
 
-// ❌ REMOVE analytics from here (causes build/prerender crash in Next.js)
-// If you need it, use a client-only component.
-
+// Admin email - you can change this to your admin email
 const ADMIN_EMAIL = "ctnimad@gmail.com";
 
-/**
- * Check admin user safely (works in client + server)
- */
 export async function isAdminUser(user: any): Promise<boolean> {
   if (!user?.email) return false;
-
-  // Fast check
+  
+  // Check if user's email matches admin email
   if (user.email === ADMIN_EMAIL) return true;
-
-  // Firestore role check
+  
+  // Alternatively, check Firestore for admin role
+  if (!db) return false;
+  
   try {
-    const ref = doc(db, "admins", user.uid);
-    const snap = await getDoc(ref);
-    return snap.exists();
+    const adminDoc = await getDoc(doc(db, "admins", user.uid));
+    return adminDoc.exists();
   } catch (error) {
     console.error("Error checking admin status:", error);
     return false;
   }
 }
 
-export { app, auth, db, ADMIN_EMAIL };
+export { app, auth, db, analytics, ADMIN_EMAIL, isFirebaseInitialized };
