@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SmoothScrollProvider } from "@/components/providers/SmoothScrollProvider";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { CurrencyProvider } from "@/contexts/CurrencyContext";
 import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
@@ -32,7 +33,9 @@ export default function RootLayout({
     >
       <body className="relative min-h-full bg-background text-foreground grain">
         <AuthProvider>
-          <SmoothScrollProvider>{children}</SmoothScrollProvider>
+          <CurrencyProvider>
+            <SmoothScrollProvider>{children}</SmoothScrollProvider>
+          </CurrencyProvider>
         </AuthProvider>
         <Analytics />
       </body>

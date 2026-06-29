@@ -1,12 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Game, categories } from "@/lib/games";
+import { Game, categories, getGames } from "@/lib/games";
 import { CategoryFilter } from "./CategoryFilter";
 import { GameGrid } from "./GameGrid";
 import { EyebrowBadge } from "@/components/ui/EyebrowBadge";
 import { AnimatedSection, AnimatedItem } from "@/components/ui/AnimatedSection";
-import { getGamesFromFirestore, subscribeToGames } from "@/lib/firestore";
 
 interface GameStoreSectionProps {}
 
@@ -16,18 +15,26 @@ export function GameStoreSection({}: GameStoreSectionProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = subscribeToGames(
-      (gamesData) => {
+    const loadGames = () => {
+      try {
+        const gamesData = getGames();
         setGames(gamesData);
         setLoading(false);
-      },
-      (error) => {
+      } catch (error) {
         console.error("Error loading games:", error);
         setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    loadGames();
+
+    // Listen for localStorage changes
+    const handleStorageChange = () => {
+      loadGames();
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const filteredGames = selectedCategory === "All Games" 

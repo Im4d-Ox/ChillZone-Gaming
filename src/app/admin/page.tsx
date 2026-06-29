@@ -3,30 +3,27 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Game } from "@/lib/games";
+import { getGames, addGame, updateGame, deleteGame } from "@/lib/games";
 import { Navbar } from "@/components/ui/Navbar";
 import { Footer } from "@/components/sections/Footer";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCurrency } from "@/contexts/CurrencyContext";
 import { isAdminUser, ADMIN_EMAIL } from "@/lib/firebase";
-import { 
-  getGamesFromFirestore, 
-  addGameToFirestore, 
-  updateGameInFirestore, 
-  deleteGameFromFirestore
-} from "@/lib/firestore";
 
 export const dynamic = 'force-dynamic';
 
 export default function AdminDashboard() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
+  const { formatPrice } = useCurrency();
   const [isAdmin, setIsAdmin] = useState(false);
   const [checkingAdmin, setCheckingAdmin] = useState(true);
   const [games, setGames] = useState<Game[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<"games" | "frames" | "logs">("games");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [formData, setFormData] = useState<Partial<Game>>({});
-  const [activeTab, setActiveTab] = useState<"games" | "frames" | "logs">("games");
   const [logs, setLogs] = useState<Array<{ action: string; timestamp: string; details: string }>>([]);
   const [framesFolders, setFramesFolders] = useState<Array<{ name: string; position: "none" | "first" | "second" }>>([
     { name: "frames", position: "second" },
@@ -108,10 +105,10 @@ export default function AdminDashboard() {
     checkAdminStatus();
   }, [user, authLoading, router]);
 
-  const loadGames = async () => {
+  const loadGames = () => {
     try {
       setLoading(true);
-      const gamesData = await getGamesFromFirestore();
+      const gamesData = getGames();
       setGames(gamesData);
     } catch (error) {
       console.error("Error loading games:", error);
@@ -129,23 +126,22 @@ export default function AdminDashboard() {
     setLogs(prev => [newLog, ...prev].slice(0, 50));
   };
 
-  const handleSaveGame = async () => {
-    if (!formData.title || !formData.price || !formData.category) {
-      alert("Please fill in required fields");
+  const handleSaveGame = () => {
+    if (!formData.title || !formData.price || !formData.category || !formData.image) {
+      alert("Please fill in required fields (Title, Price, Category, Image)");
       return;
     }
 
     try {
       if (editingGame) {
-        await updateGameInFirestore(editingGame.id, formData);
+        updateGame(editingGame.id, formData as Game);
         addLog("Game Updated", `Updated game: ${formData.title}`);
       } else {
-        const newId = await addGameToFirestore(formData as Omit<Game, "id">);
-        formData.id = newId;
+        addGame(formData as Omit<Game, "id">);
         addLog("Game Created", `Created new game: ${formData.title}`);
       }
-      await loadGames();
-      setIsModalOpen(false);
+      loadGames();
+      setShowAddForm(false);
       setEditingGame(null);
       setFormData({});
     } catch (error) {
@@ -157,28 +153,21 @@ export default function AdminDashboard() {
   const handleEditGame = (game: Game) => {
     setEditingGame(game);
     setFormData(game);
-    setIsModalOpen(true);
-    addLog("Game Edit Started", `Editing game: ${game.title}`);
+    setShowAddForm(true);
   };
 
-  const handleDeleteGame = async (gameId: string) => {
+  const handleDeleteGame = (gameId: string) => {
     const game = games.find(g => g.id === gameId);
     if (confirm("Are you sure you want to delete this game?")) {
       try {
-        await deleteGameFromFirestore(gameId);
+        deleteGame(gameId);
         addLog("Game Deleted", `Deleted game: ${game?.title}`);
-        await loadGames();
+        loadGames();
       } catch (error) {
         console.error("Error deleting game:", error);
         alert("Error deleting game");
       }
     }
-  };
-
-  const handleAddNew = () => {
-    setEditingGame(null);
-    setFormData({});
-    setIsModalOpen(true);
   };
 
   if (authLoading || checkingAdmin) {
@@ -265,13 +254,185 @@ export default function AdminDashboard() {
 
           {activeTab === "games" && (
             <button
-              onClick={handleAddNew}
+              onClick={() => setShowAddForm(!showAddForm)}
               className="px-6 py-3 bg-accent hover:bg-accent/90 text-black font-semibold rounded-lg transition-colors"
             >
-              + Add New Game
+              {showAddForm ? "Cancel" : "+ Add New Game"}
             </button>
           )}
         </div>
+
+        {activeTab === "games" && showAddForm && (
+          <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-lg p-6 mb-6">
+            <h3 className="text-xl font-bold mb-4">{editingGame ? "Edit Game" : "Add New Game"}</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Title *</label>
+                <input
+                  type="text"
+                  value={formData.title || ""}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Developer</label>
+                <input
+                  type="text"
+                  value={formData.developer || ""}
+                  onChange={(e) => setFormData({ ...formData, developer: e.target.value })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Category *</label>
+                <select
+                  value={formData.category || ""}
+                  onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                >
+                  <option value="">Select category</option>
+                  <option value="Action">Action</option>
+                  <option value="Adventure">Adventure</option>
+                  <option value="RPG">RPG</option>
+                  <option value="Strategy">Strategy</option>
+                  <option value="Sports">Sports</option>
+                  <option value="Racing">Racing</option>
+                  <option value="Puzzle">Puzzle</option>
+                  <option value="Sci-Fi">Sci-Fi</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Price *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.price || ""}
+                  onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Original Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.originalPrice || ""}
+                  onChange={(e) => setFormData({ ...formData, originalPrice: parseFloat(e.target.value) })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Discount (%)</label>
+                <input
+                  type="number"
+                  value={formData.discount || ""}
+                  onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Rating</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  max="5"
+                  value={formData.rating || ""}
+                  onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Release Date</label>
+                <input
+                  type="date"
+                  value={formData.releaseDate || ""}
+                  onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Status</label>
+                <select
+                  value={formData.status || "live"}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as "live" | "hidden" })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                >
+                  <option value="live">Live</option>
+                  <option value="hidden">Hidden</option>
+                </select>
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Image URL *</label>
+                <input
+                  type="url"
+                  value={formData.image || ""}
+                  onChange={(e) => setFormData({ ...formData, image: e.target.value })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Tags (comma-separated)</label>
+                <input
+                  type="text"
+                  value={formData.tags?.join(", ") || ""}
+                  onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(", ").map(t => t.trim()) })}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Description</label>
+                <textarea
+                  value={formData.description || ""}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  rows={4}
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+
+              <div className="col-span-2">
+                <label className="block text-sm font-medium mb-2 text-zinc-300">Features (one per line)</label>
+                <textarea
+                  value={formData.features?.join("\n") || ""}
+                  onChange={(e) => setFormData({ ...formData, features: e.target.value.split("\n").filter(f => f.trim()) })}
+                  rows={4}
+                  placeholder="Enter game features, one per line"
+                  className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4 mt-6">
+              <button
+                onClick={() => {
+                  setShowAddForm(false);
+                  setFormData({});
+                }}
+                className="px-6 py-3 border border-white/15 bg-white/[0.05] hover:bg-white/[0.1] rounded-lg font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveGame}
+                className="px-6 py-3 bg-accent hover:bg-accent/90 text-black font-semibold rounded-lg transition-colors"
+              >
+                Add Game
+              </button>
+            </div>
+          </div>
+        )}
 
         {activeTab === "games" && (
           <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-lg overflow-hidden">
@@ -300,7 +461,7 @@ export default function AdminDashboard() {
                   <td className="px-6 py-4 font-medium">{game.title}</td>
                   <td className="px-6 py-4 text-zinc-400">{game.category}</td>
                   <td className="px-6 py-4">
-                    ${game.price}
+                    {formatPrice(game.price)}
                     {game.discount && (
                       <span className="ml-2 text-green-400 text-sm">
                         -{game.discount}%
@@ -312,7 +473,7 @@ export default function AdminDashboard() {
                     <button
                       onClick={() => {
                         const newStatus = game.status === "live" ? "hidden" : "live";
-                        updateGameInFirestore(game.id, { status: newStatus });
+                        updateGame(game.id, { status: newStatus });
                         addLog("Status Changed", `${game.title} status changed to ${newStatus}`);
                         loadGames();
                       }}
@@ -326,18 +487,20 @@ export default function AdminDashboard() {
                     </button>
                   </td>
                   <td className="px-6 py-4">
-                    <button
-                      onClick={() => handleEditGame(game)}
-                      className="px-4 py-2 bg-blue-600/90 hover:bg-blue-600 rounded text-sm mr-2 transition-colors"
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDeleteGame(game.id)}
-                      className="px-4 py-2 bg-red-600/90 hover:bg-red-600 rounded text-sm transition-colors"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEditGame(game)}
+                        className="px-4 py-2 bg-blue-600/90 hover:bg-blue-600 rounded text-sm transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGame(game.id)}
+                        className="px-4 py-2 bg-red-600/90 hover:bg-red-600 rounded text-sm transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -464,169 +627,6 @@ export default function AdminDashboard() {
                   </div>
                 ))
               )}
-            </div>
-          </div>
-        )}
-
-        {isModalOpen && (
-          <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-            <div className="bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto p-8">
-              <h2 className="text-3xl font-bold mb-6">
-                {editingGame ? "Edit Game" : "Add New Game"}
-              </h2>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Title *</label>
-                  <input
-                    type="text"
-                    value={formData.title || ""}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Developer</label>
-                  <input
-                    type="text"
-                    value={formData.developer || ""}
-                    onChange={(e) => setFormData({ ...formData, developer: e.target.value })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Category *</label>
-                  <select
-                    value={formData.category || ""}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  >
-                    <option value="">Select category</option>
-                    <option value="Action">Action</option>
-                    <option value="Adventure">Adventure</option>
-                    <option value="RPG">RPG</option>
-                    <option value="Strategy">Strategy</option>
-                    <option value="Sports">Sports</option>
-                    <option value="Racing">Racing</option>
-                    <option value="Puzzle">Puzzle</option>
-                    <option value="Sci-Fi">Sci-Fi</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Price *</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.price || ""}
-                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Original Price</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.originalPrice || ""}
-                    onChange={(e) => setFormData({ ...formData, originalPrice: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Discount (%)</label>
-                  <input
-                    type="number"
-                    value={formData.discount || ""}
-                    onChange={(e) => setFormData({ ...formData, discount: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Rating</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    min="0"
-                    max="5"
-                    value={formData.rating || ""}
-                    onChange={(e) => setFormData({ ...formData, rating: parseFloat(e.target.value) })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Release Date</label>
-                  <input
-                    type="date"
-                    value={formData.releaseDate || ""}
-                    onChange={(e) => setFormData({ ...formData, releaseDate: e.target.value })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Status</label>
-                  <select
-                    value={formData.status || "live"}
-                    onChange={(e) => setFormData({ ...formData, status: e.target.value as "live" | "hidden" })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  >
-                    <option value="live">Live</option>
-                    <option value="hidden">Hidden</option>
-                  </select>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Image URL</label>
-                  <input
-                    type="url"
-                    value={formData.image || ""}
-                    onChange={(e) => setFormData({ ...formData, image: e.target.value })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Tags (comma-separated)</label>
-                  <input
-                    type="text"
-                    value={formData.tags?.join(", ") || ""}
-                    onChange={(e) => setFormData({ ...formData, tags: e.target.value.split(", ").map(t => t.trim()) })}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-2 text-zinc-300">Description</label>
-                  <textarea
-                    value={formData.description || ""}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    rows={4}
-                    className="w-full px-4 py-3 bg-zinc-800/50 border border-white/10 rounded-lg focus:outline-none focus:border-accent transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-4 mt-6">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-3 border border-white/15 bg-white/[0.05] hover:bg-white/[0.1] rounded-lg font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveGame}
-                  className="px-6 py-3 bg-accent hover:bg-accent/90 text-black font-semibold rounded-lg transition-colors"
-                >
-                  {editingGame ? "Update Game" : "Add Game"}
-                </button>
-              </div>
             </div>
           </div>
         )}

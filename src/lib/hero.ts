@@ -1,7 +1,12 @@
-export const FRAME_COUNT = 169;
+export const FRAME_COUNT = 165;
 
-export const framePath = (n: number) =>
-  `/frames/frame_${String(n).padStart(4, "0")}.jpg`;
+export const framePath = (n: number) => {
+  // Handle inconsistent file naming (some 3-digit, some 4-digit)
+  if (n <= 8) {
+    return `/frames/frame_${String(n).padStart(3, "0")}.png`;
+  }
+  return `/frames/frame_${String(n).padStart(4, "0")}.png`;
+};
 
 export type Dialogue = {
   id: string;

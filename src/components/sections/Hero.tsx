@@ -1,137 +1,70 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { EyebrowBadge } from "@/components/ui/EyebrowBadge";
 import { HudFrame } from "@/components/ui/HudFrame";
-import { DIALOGUES, FRAME_COUNT, HERO_TEXT_FADE_END, framePath } from "@/lib/hero";
+import { DIALOGUES, HERO_TEXT_FADE_END } from "@/lib/hero";
 
 export function Hero() {
   const sectionRef = useRef<HTMLElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoContainerRef = useRef<HTMLDivElement | null>(null);
   const heroTextRef = useRef<HTMLDivElement | null>(null);
   const bigLeftTextRef = useRef<HTMLDivElement | null>(null);
   const progressFillRef = useRef<HTMLDivElement | null>(null);
   const powerReadoutRef = useRef<HTMLSpanElement | null>(null);
 
-  const framesRef = useRef<HTMLImageElement[]>([]);
+  const playerRef = useRef<any>(null);
   const tickingRef = useRef(false);
   const loadedRef = useRef(false);
-  const lastFrameRef = useRef(-1);
   const prevVisibleIdsRef = useRef("");
 
-  const [loadProgress, setLoadProgress] = useState(0);
   const [loaded, setLoaded] = useState(false);
   const [visibleCards, setVisibleCards] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    let cancelled = false;
-    let loadedCount = 0;
-    const imgs: HTMLImageElement[] = [];
+    // Load YouTube IFrame API
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    const firstScriptTag = document.getElementsByTagName("script")[0];
+    firstScriptTag.parentNode?.insertBefore(tag, firstScriptTag);
 
-    // Load frames in parallel for faster loading
-    const loadFrame = (i: number) => {
-      return new Promise<void>((resolve) => {
-        const img = new Image();
-        img.src = framePath(i);
-        img.onload = () => {
-          if (cancelled) return;
-          loadedCount++;
-          setLoadProgress(loadedCount / FRAME_COUNT);
-          if (loadedCount === FRAME_COUNT) {
-            loadedRef.current = true;
-            setLoaded(true);
-          }
-          resolve();
-        };
-        img.onerror = () => {
-          if (cancelled) return;
-          loadedCount++;
-          setLoadProgress(loadedCount / FRAME_COUNT);
-          if (loadedCount === FRAME_COUNT) {
-            loadedRef.current = true;
-            setLoaded(true);
-          }
-          resolve();
-        };
-        imgs[i - 1] = img;
-      });
-    };
-
-    // Load all frames in parallel
-    const loadAllFrames = async () => {
-      const promises = [];
-      for (let i = 1; i <= FRAME_COUNT; i++) {
-        promises.push(loadFrame(i));
+    // Initialize player when API is ready
+    (window as any).onYouTubeIframeAPIReady = () => {
+      if (videoContainerRef.current) {
+        playerRef.current = new (window as any).YT.Player(videoContainerRef.current, {
+          videoId: "WYhz6WJ02So",
+          playerVars: {
+            autoplay: 1,
+            controls: 0,
+            disablekb: 1,
+            fs: 0,
+            modestbranding: 1,
+            rel: 0,
+            showinfo: 0,
+            loop: 1,
+            playlist: "WYhz6WJ02So",
+            mute: 1,
+            iv_load_policy: 3,
+          },
+          events: {
+            onReady: (event: any) => {
+              event.target.mute();
+              event.target.setVolume(0);
+              event.target.playVideo();
+              loadedRef.current = true;
+              setLoaded(true);
+            },
+          },
+        });
       }
-      await Promise.all(promises);
     };
-
-    loadAllFrames();
-    framesRef.current = imgs;
 
     return () => {
-      cancelled = true;
+      if (playerRef.current) {
+        playerRef.current.destroy();
+      }
     };
   }, []);
-
-  const drawFrame = useCallback((index: number) => {
-    const canvas = canvasRef.current;
-    const img = framesRef.current[index];
-    if (!canvas || !img || !img.complete || !img.naturalWidth) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const cw = canvas.width;
-    const ch = canvas.height;
-    const imgRatio = img.naturalWidth / img.naturalHeight;
-    const canvasRatio = cw / ch;
-
-    let drawW: number;
-    let drawH: number;
-    if (canvasRatio > imgRatio) {
-      drawW = cw;
-      drawH = cw / imgRatio;
-    } else {
-      drawH = ch;
-      drawW = ch * imgRatio;
-    }
-
-    if (window.innerWidth <= 768) {
-      drawW *= 1.3;
-      drawH *= 1.3;
-    }
-
-    const drawX = (cw - drawW) / 2;
-    const drawY = (ch - drawH) / 2;
-
-    ctx.clearRect(0, 0, cw, ch);
-    ctx.drawImage(img, drawX, drawY, drawW, drawH);
-  }, []);
-
-  const resizeCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = window.innerWidth * dpr;
-    canvas.height = window.innerHeight * dpr;
-    canvas.style.width = window.innerWidth + "px";
-    canvas.style.height = window.innerHeight + "px";
-    const ctx = canvas.getContext("2d");
-    if (ctx) ctx.scale(1, 1);
-    drawFrame(lastFrameRef.current >= 0 ? lastFrameRef.current : 0);
-  }, [drawFrame]);
-
-  useEffect(() => {
-    resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
-    return () => window.removeEventListener("resize", resizeCanvas);
-  }, [resizeCanvas]);
-
-  useEffect(() => {
-    if (!loaded) return;
-    drawFrame(0);
-    lastFrameRef.current = 0;
-  }, [loaded, drawFrame]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -149,15 +82,6 @@ export function Hero() {
           scrollable <= 0
             ? 0
             : Math.min(1, Math.max(0, -rect.top / scrollable));
-
-        const frameIndex = Math.min(
-          FRAME_COUNT - 1,
-          Math.floor(progress * FRAME_COUNT),
-        );
-        if (frameIndex !== lastFrameRef.current) {
-          lastFrameRef.current = frameIndex;
-          drawFrame(frameIndex);
-        }
 
         if (heroTextRef.current) {
           const opacity = Math.max(0, 1 - progress / HERO_TEXT_FADE_END);
@@ -195,7 +119,7 @@ export function Hero() {
     window.addEventListener("scroll", handleScroll, { passive: true });
     handleScroll();
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [drawFrame]);
+  }, []);
 
   return (
     <section ref={sectionRef} className="scroll-animation relative">
@@ -203,9 +127,9 @@ export function Hero() {
         className="sticky top-0 min-h-[100dvh] w-full overflow-hidden bg-background"
         style={{ height: "100dvh", willChange: "transform", transform: "translateZ(0)" }}
       >
-        <canvas
-          ref={canvasRef}
-          className="absolute inset-0 h-full w-full"
+        <div
+          ref={videoContainerRef}
+          className="absolute inset-0 h-full w-full pointer-events-none"
           style={{ willChange: "contents", transform: "translateZ(0)" }}
         />
 
@@ -213,7 +137,14 @@ export function Hero() {
           className="pointer-events-none absolute inset-0"
           style={{
             background:
-              "radial-gradient(120% 80% at 50% 10%, transparent 30%, rgba(10,10,11,0.45) 70%, rgba(10,10,11,0.85) 100%)",
+              "radial-gradient(120% 80% at 50% 10%, transparent 30%, rgba(10,10,11,0.6) 70%, rgba(10,10,11,0.9) 100%)",
+          }}
+        />
+        
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: "linear-gradient(180deg, rgba(30,58,138,0.3) 0%, rgba(255,107,157,0.2) 50%, rgba(255,140,66,0.3) 100%)",
           }}
         />
 
@@ -253,7 +184,7 @@ export function Hero() {
           style={{ opacity: 0, transition: "opacity 80ms linear" }}
         >
           <span className="inline-flex items-center gap-2.5 font-mono text-[10px] uppercase tracking-[0.3em] text-accent">
-            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgba(212,162,47,0.85)]" />
+            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgba(255,107,157,0.85)]" />
             Protocol &mdash; Chillzone
           </span>
           <h2 className="font-sans font-semibold leading-[0.88] tracking-tighter text-foreground text-[clamp(4rem,9.5vw,9rem)]">
@@ -283,7 +214,7 @@ export function Hero() {
           >
             8
           </span>
-          <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgba(212,162,47,0.85)]" />
+          <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-accent shadow-[0_0_10px_rgba(255,107,157,0.85)]" />
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
@@ -295,7 +226,7 @@ export function Hero() {
             />
           </div>
           <div className="mx-6 flex items-center justify-between pb-4 font-mono text-[10px] uppercase tracking-[0.28em] text-zinc-500 md:mx-10">
-            <span>SEQ 001 / 169</span>
+            <span>SEQ 001 / VIDEO</span>
             <span>CHILLZONE // STORE</span>
             <span>Scroll &darr;</span>
           </div>
@@ -365,13 +296,10 @@ export function Hero() {
           <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-5 bg-background px-6">
             <EyebrowBadge>CHILLZONE // LOADING</EyebrowBadge>
             <div className="h-px w-60 bg-white/10 md:w-80">
-              <div
-                className="h-full bg-accent transition-[width] duration-150 ease-out"
-                style={{ width: `${Math.round(loadProgress * 100)}%` }}
-              />
+              <div className="h-full bg-accent animate-pulse" />
             </div>
             <p className="font-mono text-[11px] uppercase tracking-[0.28em] text-zinc-500">
-              Loading Games &nbsp;&middot;&nbsp; {Math.round(loadProgress * 100)}%
+              Loading Video
             </p>
           </div>
         )}
